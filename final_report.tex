@@ -202,12 +202,26 @@ Figure~\ref{fig:overview} illustrates the overall pipeline.
 
 \begin{figure*}[t]
 \centering
-\fbox{\rule{0.9\textwidth}{0pt}\rule{0pt}{2.5cm}}
-\caption{Overall pipeline. Frozen CLIP encoders produce image embeddings
-$E_t$ and label embeddings $L$. The Flow Model (causal Transformer) predicts
-$(\hat{E}_1, \dots, \hat{E}_n)$ from $(L, E_0)$. The Renderer (UNet with
-various conditioning mechanisms) produces each frame $I_t$ from $I_{t-1}$
-conditioned on $\hat{E}_t$ and $L$.}
+\fbox{\begin{minipage}{0.9\textwidth}
+\vspace{0.3cm}
+\noindent\textbf{Pipeline Overview.}
+\begin{center}
+\ttfamily
+[Input Image $I_0$] $\rightarrow$ [CLIP ViT] $\rightarrow$ [$E_0$] \\
+{[Action Label]} $\rightarrow$ [CLIP Text] $\rightarrow$ [$L$] \\[4pt]
+[$L$, $E_0$] $\rightarrow$ [\textbf{Flow Model}: Causal Transformer] $\rightarrow$ [$\hat{E}_1, \dots, \hat{E}_n$] \\[4pt]
+[$I_{t-1}$, $\hat{E}_t$, $L$, patches] $\rightarrow$ [\textbf{Renderer}: FiLM + Cross-Attn UNet] $\rightarrow$ [$I_t$]
+\end{center}
+\smallskip
+The Flow Model and Renderer are trained separately. At inference, the Flow
+Model generates the embedding trajectory autoregressively; the Renderer
+produces each frame conditioned on the predicted embedding.
+\vspace{0.2cm}
+\end{minipage}}
+\caption{Overall pipeline. Frozen CLIP encoders produce image and label
+embeddings. The Flow Model predicts the embedding trajectory. The Renderer
+produces each output frame conditioned on the predicted embedding and the
+previous frame.}
 \label{fig:overview}
 \end{figure*}
 
