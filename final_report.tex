@@ -69,10 +69,20 @@ Inspired by the JEPA framework, we investigate an alternative: decoupling
 the problem into a \textbf{Flow Model} that predicts motion in a semantic
 embedding space and a \textbf{Renderer} that converts semantic predictions
 back to pixels. The key hypothesis is that motion dynamics are easier to
-model in a compact, abstract embedding space than in raw pixels. In an ideal
-scenario, the Flow Model would learn high-level action dynamics (``a walking
-person alternates legs''), and the Renderer would faithfully translate these
-semantic blueprints into frames.
+model in a compact, abstract embedding space than in raw pixels. In an
+ideal scenario, the Flow Model would learn high-level action dynamics (``a
+walking person alternates legs''), and the Renderer would faithfully
+translate these semantic blueprints into frames.
+
+A central motivation for using frozen pre-trained encoders (CLIP ViT-B/32)
+was to investigate whether their rich visual-semantic priors could reduce
+training costs. Large-scale video generation models typically require
+enormous datasets and compute budgets; if a frozen pre-trained
+representation already captures meaningful visual structure, a lightweight
+decoder might be sufficient to render motion within that representation
+space. This is the core hypothesis we set out to test: \textbf{can frozen
+pre-trained visual priors serve as an effective backbone for low-cost
+image-to-video generation?}
 
 We implement this framework using frozen CLIP ViT-B/32 encoders, a causal
 Transformer for embedding trajectory prediction, and a UNet-based Renderer
@@ -587,6 +597,21 @@ an information compression ratio that is implausible for any decoder
 architecture to invert. All other observed problems---loss function
 collapse to identity, FiLM's inability to express spatial motion---can
 be understood as consequences of this root cause.
+
+Returning to our original research question---whether frozen pre-trained
+visual priors can serve as an effective backbone for low-cost I2V
+generation---our results suggest a nuanced answer. The priors \emph{do}
+carry useful semantic information: our Flow Model successfully learned
+action-conditioned embedding trajectories with 82.5\% of ground-truth
+motion variation, and the embedding space cleanly separates different
+action classes (inter-class 1-cos $\approx$ 0.44 vs. intra-class $\approx$
+0.34). However, semantic priors alone are insufficient for the
+\emph{rendering} stage, which requires fine-grained spatial information
+that CLIP's training objective discards. The lesson is not that pre-trained
+priors are useless for video generation, but that the choice of
+pre-trained representation must be matched to \emph{both} stages of a
+decoupled pipeline---the prediction stage needs semantic structure, while
+the rendering stage needs spatial correspondence.
 
 \textbf{Future directions} suggested by this analysis include: (1)
 replacing CLIP with a dense visual representation trained for spatial
