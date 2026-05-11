@@ -1,0 +1,6 @@
+data/hmdb51/
+checkpoints/
+__pycache__/
+*.pyc
+.claude/
+*.aux *.log *.out *.bbl *.blg *.synctex.gz
