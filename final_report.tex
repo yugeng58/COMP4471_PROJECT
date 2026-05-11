@@ -414,45 +414,63 @@ architectures.
 %%%%%%%%% DISCUSSION
 \section{Discussion: Why Did It Fail?}
 
-We identify four interrelated factors contributing to the Renderer's
-failure:
+We identify the following contributing factors, ordered from most
+fundamental to most specific.
 
-\subsection{Factor 1: Vanishing Embedding Gradient}
-Adjacent-frame CLIP embeddings differ by 1-cos $\approx 0.024$. For the
-Flow Model, this is a learnable signal (we achieve 82.5\% of GT variation).
-But for the Renderer, this means the conditioning vector $[E_t; L]$ changes
-by $<3$\% between frames---far too little for the UNet to learn a
-meaningful mapping from condition to output.
+\subsection{Primary Cause: CLIP Embeddings Lack the Necessary Information}
 
-\subsection{Factor 2: Loss Function Misalignment}
+We believe this is the root cause from which all other issues derive.
+CLIP ViT-B/32 is trained with a contrastive image-text matching objective:
+given an image and a text description, maximize the cosine similarity of
+their embeddings. This objective encourages the model to extract
+\emph{semantic content}---``what is in this image''---and compresses it
+into a compact 512-dimensional vector.
+
+What CLIP's training objective does \emph{not} require is preserving the
+kind of information needed for frame-to-frame rendering:
+
+\begin{itemize}
+    \item \textbf{Spatial configuration:} The precise 2D coordinates of
+    body parts, objects, and their relative positions.
+    \item \textbf{Pose and articulation:} The joint angles of limbs, the
+    orientation of a head, the bend of a knee.
+    \item \textbf{Dense correspondence:} Which pixel in frame $t$
+    corresponds to which pixel in frame $t+1$.
+\end{itemize}
+
+A CLIP embedding can tell you ``this is a person walking'' with high
+confidence, but it cannot tell you ``the right leg is currently forward
+at a 30-degree angle, positioned at pixel coordinates (120, 180).'' The
+latter is precisely the information a Renderer needs to predict what the
+next frame should look like.
+
+This explains the asymmetry in our results: the Flow Model succeeded
+because predicting an embedding trajectory only requires matching the
+statistical distribution of CLIP embeddings---a task CLIP embeddings
+contain sufficient information for. The Renderer failed because decoding
+an embedding back to a specific spatial configuration of pixels requires
+information that was discarded during CLIP's encoding process.
+
+Empirically, we confirmed this information bottleneck: adjacent frames of
+the same video have CLIP embeddings with cosine similarity $\approx 0.976$
+($\text{1-cos} \approx 0.024$). This tiny difference must encode the entire
+motion transformation from one frame to the next---a compression ratio far
+exceeding what any decoder architecture can plausibly invert.
+
+\subsection{Contributing Factor: Loss Function Misalignment}
 All our loss functions (L1 on residuals, L1 on reconstruction after
-warping) have the property that the \emph{optimal constant prediction} is
-already near the ground truth: $\Delta I_t \approx 0$ and $\text{flow}
-\approx 0$. The model can achieve a respectably low loss by ignoring the
-condition and outputting a near-identity transformation. The contrastive
-conditioning loss in variant 3 was designed to address this, but it only
-constrains the \emph{direction} of output variation, not its magnitude.
-A constant-near-zero output with slightly different noise patterns per
-condition can satisfy the contrastive constraint while still producing no
-meaningful motion.
+warping) have an optimal trivial solution near the identity transformation:
+$\Delta I_t \approx 0$ and $\text{flow} \approx 0$. When the conditioning
+signal carries almost no usable information (as argued above), identity
+mapping becomes the rational optimum.
 
-\subsection{Factor 3: FiLM Cannot Express Spatial Motion}
+\subsection{Contributing Factor: FiLM Cannot Express Spatial Guidance}
 Feature-wise Linear Modulation applies channel-wise scaling and shifting
-that is uniform across all spatial positions. This can adjust global
-brightness or contrast but cannot communicate ``the hand should move to the
-upper-right while the background stays still.'' Cross-attention to CLIP
-patch tokens (variant 2) was an attempt to introduce spatial conditioning,
-but the patch tokens from CLIP ViT capture \emph{what} is in each region,
-not \emph{how it should move}.
-
-\subsection{Factor 4: Representation Mismatch}
-CLIP embeddings are trained for image-text alignment; they encode semantic
-content (``a person walking'') but not spatial configuration (``the right
-leg is bent at 30 degrees and positioned at coordinates (x, y)''). The
-information needed to predict pixel-level frame changes requires spatial
-representations that CLIP's global pooling discards. Using patch tokens
-helps but does not fully resolve this, as CLIP patch tokens are not trained
-for dense correspondence tasks.
+uniform across all spatial positions. Even if the embedding \emph{did}
+contain spatial information, FiLM lacks the mechanism to route it to the
+correct spatial location. Cross-attention to CLIP patch tokens partially
+addresses this routing problem, but the patch tokens themselves still lack
+dense correspondence information due to the primary cause above.
 
 \subsection{Limitations of Our Study}
 
@@ -545,23 +563,27 @@ variation, while MSE loss led to complete collapse. However, the Renderer
 failed across all four conditioning architectures tested: FiLM,
 cross-attention, contrastive conditioning, and optical flow prediction.
 
-Our analysis suggests the failure is not due to any single architectural
-choice but stems from a fundamental mismatch: the Renderer is asked to
-extract spatially-precise motion instructions from a conditioning signal
-that varies by less than 3\% between frames and that was never designed to
-encode spatial configuration. All tested loss functions contain a
-near-identity trivial solution that dominates the optimization.
+Our analysis suggests the primary cause is a fundamental information
+bottleneck: CLIP ViT-B/32 embeddings are trained for semantic image-text
+alignment and do not preserve the spatial configuration, pose, and
+correspondence information necessary for pixel-level frame rendering.
+Adjacent frames differ by less than 3\% in CLIP embedding cosine distance,
+an information compression ratio that is implausible for any decoder
+architecture to invert. All other observed problems---loss function
+collapse to identity, FiLM's inability to express spatial motion---can
+be understood as consequences of this root cause.
 
 \textbf{Future directions} suggested by this analysis include: (1)
-replacing the global CLIP embedding with dense spatial features from a
-model trained for correspondence (e.g., DINOv2, optical flow networks);
-(2) training the Flow Model and Renderer jointly end-to-end, so the
-Flow Model learns to produce embeddings that are directly useful for
-rendering rather than matching a pre-trained representation; (3) replacing
-the single-step rendering approach with an iterative or diffusion-based
-process where the model can refine its output over multiple steps; (4)
-using adversarial or perceptual losses that penalize the absence of motion
-rather than L1 deviation from a static ground truth.
+replacing CLIP with a dense visual representation trained for spatial
+correspondence, such as DINOv2 patch features, Stable Diffusion VAE
+latents, or self-supervised optical flow features; (2) training the Flow
+Model and Renderer jointly end-to-end, so the embedding space can adapt to
+the specific needs of rendering rather than being constrained by a frozen
+pre-trained encoder; (3) adopting losses that explicitly penalize lack of
+motion, such as adversarial or perceptual losses, to break the near-identity
+local minimum; (4) incorporating explicit motion representations such as
+optical flow or keypoint trajectories as intermediate supervision targets
+rather than relying solely on the embedding to carry all motion information.
 
 {
     \small
