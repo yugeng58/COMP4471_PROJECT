@@ -59,13 +59,13 @@ sequence from a single static frame. When conditioned on an action label
 with that action. This task is relevant to content creation, video editing, and
 synthetic data augmentation for action recognition systems.
 
-Recent large-scale diffusion models such as Stable Video Diffusion and
-Wan2.2 have demonstrated impressive results by inflating image diffusion
-architectures into the temporal domain. However, these end-to-end approaches
-incur substantial computational costs and remain prone to motion flickering
-and identity drift.
+Recent large-scale diffusion models such as Stable Video
+Diffusion~\cite{blat2023} and Wan~\cite{wan2025} have demonstrated impressive
+results by inflating image diffusion architectures into the temporal domain.
+However, these end-to-end approaches incur substantial computational costs
+and remain prone to motion flickering and identity drift.
 
-Inspired by the JEPA framework, we investigate an alternative: decoupling
+Inspired by the JEPA framework~\cite{lecun2022}, we investigate an alternative: decoupling
 the problem into a \textbf{Flow Model} that predicts motion in a semantic
 embedding space and a \textbf{Renderer} that converts semantic predictions
 back to pixels. The key hypothesis is that motion dynamics are easier to
@@ -107,32 +107,33 @@ on embedding-conditioned generative models.
 \section{Related Work}
 
 \subsection{Image-to-Video Generation}
-Early video generation methods employed recurrent networks or generative
-adversarial networks. More recently, diffusion-based approaches have become
-standard. Stable Video Diffusion fine-tunes a pre-trained image diffusion
-model on video data by adding temporal layers. Wan2.2 follows a similar
-approach at larger scale. These models generally operate in a VAE latent
+Early video generation methods employed recurrent
+networks~\cite{srivastava2015} or generative adversarial
+networks~\cite{vondrick2016}. More recently, diffusion-based approaches have
+become standard. Stable Video Diffusion~\cite{blat2023} fine-tunes a
+pre-trained image diffusion model on video data by adding temporal layers.
+Wan~\cite{wan2025} follows a similar approach at larger scale. These models generally operate in a VAE latent
 space, simultaneously modeling spatial structure and temporal dynamics in one
 pipeline. We experiment with a fundamentally different architecture that
 attempts to factor these responsibilities across two modules.
 
 \subsection{Latent Predictive Architectures}
 The JEPA framework proposes that predictive learning should operate in
-representation space rather than input space. V-JEPA applies this
+representation space rather than input space. V-JEPA~\cite{bardes2024} applies this
 principle to self-supervised video learning by predicting masked
 spatio-temporal features. Our Flow Model follows the same intuition: predict
-the trajectory of CLIP embeddings rather than raw pixels. Where our work
+the trajectory of CLIP embeddings~\cite{radford2021} rather than raw pixels. Where our work
 differs is the downstream rendering step---converting predicted embeddings
 back to pixels---which proves to be the critical bottleneck.
 
 \subsection{Conditioned Image Generation}
 Feature-wise Linear Modulation (FiLM) and cross-attention are
 standard techniques for conditioning image generation on external
-information. FiLM applies channel-wise affine transformations
+information. FiLM~\cite{perez2018} applies channel-wise affine transformations
 $\gamma(c) \odot x + \beta(c)$ predicted from a conditioning vector $c$,
 and has been widely used in visual question answering, style transfer, and
-video prediction. Cross-attention, popularized by the Transformer
-architecture, allows each spatial position in a feature map to attend to a
+video prediction. Cross-attention, popularized by the
+Transformer~\cite{vaswani2017} architecture, allows each spatial position in a feature map to attend to a
 set of conditioning tokens. Our experiments test both mechanisms
 independently and in combination, and find that neither is sufficient when
 the conditioning signal (adjacent-frame CLIP embeddings) varies by less
@@ -140,9 +141,9 @@ than 3\% in cosine distance.
 
 \subsection{Optical Flow and Warping}
 Frame interpolation and video prediction often employ explicit optical flow
-prediction followed by warping. Methods such as RAFT achieve
+prediction followed by warping. Methods such as RAFT~\cite{teed2020} achieve
 state-of-the-art optical flow estimation through iterative refinement,
-while simpler approaches use Farneback or TV-L1 flow as a supervision
+while simpler approaches use Farneback optical flow as a supervision
 signal. Our final Renderer variant adopts a flow-based approach: a UNet
 backbone predicts a dense flow field conditioned on CLIP embeddings, and
 the previous frame is warped via differentiable bilinear sampling. We use
@@ -151,17 +152,17 @@ regularization to encourage spatial smoothness.
 
 \subsection{Action-Conditioned Video Generation}
 Motion generation conditioned on action labels has been studied in
-controlled settings such as video game environments and simplified
-human motion benchmarks. Text-to-video models such as Make-A-Video and
-Imagen Video use large language model embeddings for open-vocabulary
-conditioning at scale. Our setting is intermediate: we use closed-set
+controlled settings such as video game environments~\cite{oh2015} and
+simplified human motion benchmarks. Text-to-video models such as Make-A-Video~\cite{singer2022} and
+Imagen Video~\cite{ho2022} use large language model embeddings for
+open-vocabulary conditioning at scale. Our setting is intermediate: we use closed-set
 action labels encoded through CLIP text embeddings, providing a clean
 semantic signal in the same embedding space as the visual features.
 
 %%%%%%%%% DATA
 \section{Data}
 
-We use the HMDB51 dataset, containing 6,754 video clips across 51
+We use the HMDB51 dataset~\cite{kuehne2011}, containing 6,754 video clips across 51
 human action categories such as ``walking,'' ``drinking,'' ``brushing hair,''
 and ``climbing stairs.'' Videos average approximately 3 seconds in duration at
 25--30 fps. All available videos (6,754) are used for training; metrics reported in
@@ -252,8 +253,8 @@ We compare two loss functions:
 
 \subsection{Renderer}
 
-The Renderer is a UNet (4 down/up blocks, 40--43M parameters depending on
-variant) that takes $I_{t-1}$ as input and produces an output conditioned
+The Renderer is a UNet~\cite{ronneberger2015} (4 down/up blocks,
+40--43M parameters depending on variant) that takes $I_{t-1}$ as input and produces an output conditioned
 on $\hat{E}_t$, $L$, and patch tokens. We experiment with four variants:
 
 \begin{enumerate}
@@ -321,7 +322,8 @@ to 82.5\% of GT motion, combined with the cosine loss change).
 
 \textbf{Multi-scale flow prediction.} In the flow prediction Renderer
 variant, we considered predicting flow at multiple decoder resolutions and
-combining them via coarse-to-fine refinement (similar to RAFT). However,
+combining them via coarse-to-fine refinement (similar to
+RAFT~\cite{teed2020}). However,
 initial experiments showed that even a single-scale flow head struggled to
 produce consistent non-zero outputs, so we deferred multi-scale
 investigation to future work.
@@ -339,6 +341,7 @@ We evaluate using the following metrics:
     measuring how much ``motion'' the predicted embeddings contain.
     \item \textbf{Conditioning Sensitivity}: $\frac{\|\text{Renderer}(I, E_t) - \text{Renderer}(I, E_0)\|_1}{\|\text{Renderer}(I, E_0)\|_1 + \epsilon}$,
     measuring whether changing the embedding changes the Renderer output.
+We also report LPIPS~\cite{zhang2018} for perceptual quality assessment.
 \end{itemize}
 
 \subsection{Flow Model Results}
@@ -486,7 +489,7 @@ motion transformation from one frame to the next---a compression ratio far
 exceeding what any decoder architecture can plausibly invert.
 
 \subsection{Contributing Factor: Loss Function Misalignment}
-All our loss functions (L1 on residuals, L1 on reconstruction after
+All our loss functions (L1~\cite{isola2017} on residuals, L1 on reconstruction after
 warping) have an optimal trivial solution near the identity transformation:
 $\Delta I_t \approx 0$ and $\text{flow} \approx 0$. When the conditioning
 signal carries almost no usable information (as argued above), identity
@@ -635,8 +638,9 @@ rather than relying solely on the embedding to carry all motion information.
         \bibitem{blat2023} A.~Blattmann, T.~Dockhorn, S.~Kulal, et al.
         ``Stable Video Diffusion: Scaling Latent Video Diffusion Models to
         Large Datasets.'' \textit{arXiv:2311.15127}, 2023.
-        \bibitem{wan2026} Alibaba. ``Wan2.2: Large-Scale Image-to-Video
-        Generation.'' 2025--2026.
+        \bibitem{wan2025} A.~Wang, B.~Ai, B.~Wen, et al. (Team Wan, Alibaba).
+``Wan: Open and Advanced Large-Scale Video Generative Models.''
+\textit{arXiv:2503.20314}, 2025.
         \bibitem{lecun2022} Y.~LeCun. ``A Path Towards Autonomous Machine
         Intelligence.'' \textit{OpenReview}, 2022.
         \bibitem{bardes2024} A.~Bardes, Q.~Garrido, J.~Ponce, et al.
@@ -676,9 +680,9 @@ rather than relying solely on the embedding to carry all motion information.
         \bibitem{ho2022} J.~Ho, W.~Chan, C.~Saharia, et al.
         ``Imagen Video: High Definition Video Generation with Diffusion
         Models.'' \textit{arXiv:2210.02303}, 2022.
-        \bibitem{monfort2019} M.~Monfort, A.~Andonian, B.~Zhou, et al.
-        ``Moments in Time Dataset: One Million Videos for Event
-        Understanding.'' \textit{TPAMI}, 2019.
+        \bibitem{teed2020} Z.~Teed, J.~Deng.
+        ``RAFT: Recurrent All-Pairs Field Transforms for Optical Flow.''
+        \textit{ECCV}, 2020.
     \end{thebibliography}
 }
 
