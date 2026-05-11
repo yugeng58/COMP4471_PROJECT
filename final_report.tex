@@ -42,11 +42,13 @@ architectures---FiLM conditioning, cross-attention to CLIP patch tokens,
 contrastive conditioning loss, and optical flow prediction---and find that each
 variant collapses to a mode where the embedding condition is effectively ignored
 and the output is a near-identity transformation of the input frame. We present a
-detailed failure analysis identifying the root causes: vanishing embedding motion
-signal between adjacent frames, a training objective fundamentally misaligned
-with conditioning sensitivity, and the inherent difficulty of encoding spatial
-motion into a single global feature vector. Despite the negative result, our
-analysis highlights key design challenges for embedding-conditioned video
+detailed failure analysis identifying the primary root cause: frozen CLIP ViT
+embeddings, trained for semantic image-text alignment, lack the spatial
+configuration and dense correspondence information necessary for pixel-level
+frame rendering. Contributing factors---loss functions that reward near-identity
+outputs and conditioning mechanisms unable to express spatial motion---are
+understood as consequences of this information bottleneck. Despite the negative
+result, our analysis clarifies the requirements for embedding-conditioned video
 synthesis and suggests concrete alternative approaches.
 \end{abstract}
 
@@ -92,10 +94,11 @@ loss function across four Renderer variants.
 
 \textbf{Our key finding is negative but instructive}: across all four variants,
 the Renderer learns to ignore the embedding condition and produces
-near-identical outputs regardless of input conditioning. The root cause is
-not any single architectural choice but a fundamental tension between (1) the
-minimal variation in CLIP embeddings between adjacent video frames, and (2)
-loss functions that penalize deviation from a nearly-static ground truth.
+near-identical outputs regardless of input conditioning. The primary root
+cause, as our analysis will show, is that frozen CLIP ViT embeddings---trained
+for semantic alignment rather than spatial correspondence---lack the
+information content necessary for pixel-level rendering, a bottleneck that
+no conditioning architecture or loss function could overcome.
 
 We present a detailed failure analysis quantifying the embedding signal
 strength, the collapse behavior across architectures, and the training
@@ -163,8 +166,10 @@ semantic signal in the same embedding space as the visual features.
 We use the HMDB51 dataset, containing 6,754 video clips across 51
 human action categories such as ``walking,'' ``drinking,'' ``brushing hair,''
 and ``climbing stairs.'' Videos average approximately 3 seconds in duration at
-25--30 fps. The dataset is split into training (70\%) and test (30\%) sets
-following the first official split.
+25--30 fps. All available videos (6,754) are used for training; metrics reported in
+this paper are computed on the training set, as our investigation focused
+on training dynamics and conditioning sensitivity rather than
+generalization to held-out data.
 
 \subsection{Preprocessing}
 For each video, we sample 17 consecutive frames ($n=16$ prediction steps) at
