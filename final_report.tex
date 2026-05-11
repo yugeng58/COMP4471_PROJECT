@@ -219,11 +219,17 @@ encoded to 512-dim semantic embeddings $L$.
 
 \subsection{Flow Model}
 
-A 4-layer causal Transformer encoder (12.9M parameters) with 8 attention
-heads and feedforward dimension 2048. The input sequence is
-$[L, E_0, E_1, \dots, E_{n-1}]$, and the model is trained with shifted
-teacher forcing: position $t$ predicts $\hat{E}_{t}$ from
-$(L, E_{0, \dots, t-1})$.
+We initially attempted a continuous flow matching formulation: learning a
+velocity field $v_\theta(E_t, t, L)$ that transports $E_0$ to $E_n$ through
+the embedding space. This approach produced unstable trajectories and poor
+convergence, which motivated our switch to a discrete autoregressive
+formulation.
+
+Our final Flow Model is a 4-layer causal Transformer encoder (12.9M
+parameters) with 8 attention heads and feedforward dimension 2048. The
+input sequence is $[L, E_0, E_1, \dots, E_{n-1}]$, and the model is
+trained with shifted teacher forcing: position $t$ predicts $\hat{E}_{t}$
+from $(L, E_{0, \dots, t-1})$.
 
 We compare two loss functions:
 \begin{itemize}
@@ -413,17 +419,30 @@ architectures.
 We identify the following contributing factors, ordered from most
 fundamental to most specific.
 
-\subsection{Primary Cause: CLIP Embeddings Lack the Necessary Information}
+\subsection{Primary Cause: Frozen CLIP Embeddings Are Unsuitable for This Task}
 
 We believe this is the root cause from which all other issues derive.
-CLIP ViT-B/32 is trained with a contrastive image-text matching objective:
-given an image and a text description, maximize the cosine similarity of
-their embeddings. This objective encourages the model to extract
-\emph{semantic content}---``what is in this image''---and compresses it
-into a compact 512-dimensional vector.
+Several lines of evidence point specifically to the frozen pre-trained
+ViT embeddings---rather than the Transformer architecture or the decoupled
+pipeline design---as the bottleneck.
 
-What CLIP's training objective does \emph{not} require is preserving the
-kind of information needed for frame-to-frame rendering:
+First, purely autoregressive Transformer-based video generation has been
+demonstrated successfully in prior work (e.g., VideoGPT, TATS, and more
+recent video tokenizers combined with autoregressive transformers). These
+models generate videos token-by-token or frame-by-frame, proving that the
+autoregressive Transformer paradigm is not inherently flawed for video
+generation. The key difference is that these models operate on
+\emph{learned} discrete tokens from a VQ-VAE trained jointly for
+reconstruction, whereas our Flow Model operates on \emph{frozen} CLIP
+embeddings that were never optimized for the rendering task.
+
+Second, CLIP ViT-B/32 is trained with a contrastive image-text matching
+objective: given an image and a text description, maximize the cosine
+similarity of their embeddings. This objective encourages the model to
+extract \emph{semantic content}---``what is in this image''---and
+compresses it into a compact 512-dimensional vector. What CLIP's training
+objective does \emph{not} require is preserving the kind of information
+needed for frame-to-frame rendering:
 
 \begin{itemize}
     \item \textbf{Spatial configuration:} The precise 2D coordinates of
